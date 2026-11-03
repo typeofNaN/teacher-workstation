@@ -1,0 +1,52 @@
+appId: com.teacher.workstation
+productName: 任课老师工作台
+copyright: Copyright © 2026
+directories:
+  output: release
+  buildResources: build
+# 主进程 / 预加载只依赖 electron 与 Node 内置模块，渲染层已由 Vite 完整打包，
+# 因此无需携带 node_modules：pnpm 的符号链接结构会让 asar 收集阶段极慢甚至卡死。
+files:
+  - out/**/*
+  - package.json
+  - '!node_modules/**/*'
+asar: true
+# 没有原生模块需要编译，跳过 @electron/rebuild，更快也更稳
+npmRebuild: false
+# macOS 打包后补一次 ad-hoc 签名，保证未配置证书时 Apple Silicon 上也能直接双击运行
+afterPack: scripts/after-pack.cjs
+
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
+  # 产物名统一用 ASCII，避免中文文件名在下载链接 / CI artifact 中被转义
+  artifactName: TeacherWorkstation-${version}-win-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 任课老师工作台
+  language: '2052'
+  # 卸载时保留用户数据（教师的工作台数据默认存在 AppData 下）
+  deleteAppDataOnUninstall: false
+
+mac:
+  icon: build/icon.icns
+  category: public.app-category.education
+  # 架构由命令行传入（--arm64 / --x64）。不要在这里写死 arch：
+  # 一次构建多个架构时 electron-builder 会并发调用 hdiutil，
+  # 而系统同一时刻只允许创建一个磁盘映像，会直接失败。
+  target:
+    - dmg
+    - zip
+  artifactName: TeacherWorkstation-${version}-mac-${arch}.${ext}
+dmg:
+  title: ${productName} ${version}
+
+linux:
+  target:
+    - AppImage
+  category: Education

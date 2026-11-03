@@ -1,0 +1,171 @@
+name: Release
+
+# 推送 v* 标签时自动构建 Windows / macOS 安装包并发布 Release
+on:
+  push:
+    tags:
+      - 'v*'
+  # 手动触发只构建、不发布，方便先验证打包流程是否正常
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '可选：写入产物的版本号（如 1.2.3）。留空则使用 package.json 中的版本'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # CI 跑在 GitHub 官方 runner 上，直连官方源比国内镜像更稳，会覆盖 .npmrc 里的镜像配置
+  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+  # 不配置签名证书时跳过 electron-builder 的证书探测，
+  # macOS 侧改由 scripts/after-pack.cjs 做 ad-hoc 签名
+  CSC_IDENTITY_AUTO_DISCOVERY: false
+
+jobs:
+  build:
+    name: 构建 ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 每个架构单独一个 job：electron-builder 并行构建多架构 dmg 时会并发调用 hdiutil，
+          # 而 macOS 同一时刻只允许创建一个磁盘映像，会直接失败。
+          - os: macos-latest
+            label: macOS arm64（Apple 芯片）
+            artifact: mac-arm64
+            build_args: --mac --arm64
+          - os: macos-latest
+            label: macOS x64（Intel）
+            artifact: mac-x64
+            build_args: --mac --x64
+          - os: windows-latest
+            label: Windows x64
+            artifact: win-x64
+            build_args: --win --x64
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 按标签同步版本号
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=""
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          fi
+
+          if [[ -z "$VERSION" ]]; then
+            echo "未指定版本号，沿用 package.json：$(node -p "require('./package.json').version")"
+            exit 0
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::版本号格式非法：$VERSION（应形如 1.2.3 或 1.2.3-beta.1）"
+            exit 1
+          fi
+
+          npm pkg set version="$VERSION"
+          echo "版本号已设置为 $VERSION"
+
+      - name: 类型检查并构建
+        run: pnpm build
+
+      - name: 打包安装包
+        shell: bash
+        run: pnpm exec electron-builder ${{ matrix.build_args }} --publish never
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+            release/latest*.yml
+
+  release:
+    name: 发布 Release
+    # 仅标签推送时发布；手动触发只产出 artifact
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载全部构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 生成 SHA256 校验文件
+        run: |
+          cd dist
+          # 排除校验文件自身，避免把「空文件的哈希」写进去
+          ls -1 | grep -v '^SHA256SUMS\.txt$' | xargs sha256sum > SHA256SUMS.txt
+          ls -lh
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 任课老师工作台 ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          body: |
+            ## 下载
+
+            | 平台 | 文件 | 说明 |
+            | --- | --- | --- |
+            | Windows | `TeacherWorkstation-*-win-x64.exe` | NSIS 安装包，双击安装 |
+            | macOS（Apple 芯片） | `TeacherWorkstation-*-mac-arm64.dmg` | M1/M2/M3/M4 |
+            | macOS（Intel） | `TeacherWorkstation-*-mac-x64.dmg` | Intel 芯片 |
+
+            ## 安装说明
+
+            **macOS**：安装包未使用 Apple 开发者证书签名，首次打开若提示「已损坏」或「无法验证开发者」，请：
+            1. 在「访达」中右键点击应用图标 → 选择「打开」；
+            2. 若仍被拦截，打开「终端」执行：
+               ```bash
+               xattr -dr com.apple.quarantine /Applications/任课老师工作台.app
+               ```
+
+            **Windows**：安装包未做代码签名，SmartScreen 可能提示「Windows 已保护你的电脑」，点击「更多信息」→「仍要运行」即可。
+
+            数据全部保存在本地，卸载应用不会删除已有数据。
+          files: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/SHA256SUMS.txt
