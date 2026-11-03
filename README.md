@@ -4,6 +4,8 @@
 
 技术栈：Electron · TypeScript · React 18 · Vite · TailwindCSS · shadcn/ui 风格组件 · Zustand · Recharts。
 
+![工作台](docs/screenshots/01-dashboard.png)
+
 ## 功能
 
 | 模块 | 能力 |
@@ -18,6 +20,28 @@
 | 学生名单 | 花名册、搜索、批量粘贴导入（姓名,学号,性别）；删除学生级联清理成绩与登记 |
 | AI 助手 | 备课教案 / 分层作业 / 试卷分析 / 学科评语模板；自动带上班级学情（学生姓名匿名化）；可复制提示词，也可配置 OpenAI 兼容接口直接生成 |
 | 设置 | 个人信息与学期、班级管理（含座位行列）、作息节次、主题、AI 接口、数据导出 / 导入 / 清空 |
+
+## 界面预览
+
+| 课堂 · 可视化教室 | 课堂 · 点评模式 |
+| --- | --- |
+| ![课堂](docs/screenshots/02-classroom.png) | ![课堂点评](docs/screenshots/03-classroom-feedback.png) |
+
+| 学生详情（历次考试 / 作业 / 反馈） | 课表与调课 |
+| --- | --- |
+| ![学生详情](docs/screenshots/05-student-detail.png) | ![课表](docs/screenshots/06-timetable.png) |
+
+| 教学进度 | 作业登记 |
+| --- | --- |
+| ![教学进度](docs/screenshots/07-progress.png) | ![作业](docs/screenshots/08-assignments.png) |
+
+| 成绩录入与分析 | 学生名单 |
+| --- | --- |
+| ![成绩](docs/screenshots/09-grades.png) | ![学生名单](docs/screenshots/10-students.png) |
+
+| AI 备课助手 |
+| --- |
+| ![AI 助手](docs/screenshots/11-ai.png) |
 
 ## 开发
 
