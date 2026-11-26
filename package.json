@@ -3,7 +3,19 @@
   "version": "1.0.0",
   "description": "任课老师个人工作台 — 本地优先的教师桌面工作台",
   "main": "./out/main/index.js",
-  "author": "teacher-workstation",
+  "author": {
+    "name": "typeofNaN",
+    "url": "https://github.com/typeofNaN",
+    "email": "dmdefine6@gmail.com"
+  },
+  "homepage": "https://github.com/typeofNaN/teacher-workstation",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/typeofNaN/teacher-workstation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/typeofNaN/teacher-workstation/issues"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -67,6 +79,9 @@
     "zustand": "^5.0.2"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["electron", "esbuild"]
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
   }
 }
